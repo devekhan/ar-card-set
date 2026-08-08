@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>AR Card Set</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+</head>
+<body>
+
+  <!-- Simple loading / status overlay -->
+  <div id="overlay">
+    <p id="status">Point your camera at one of your printed AR cards.</p>
+  </div>
+
+  <!--
+    mindar-image = "imageTargetSrc: assets/targets/targets.mind"
+    That .mind file is a COMPILED version of your card art.
+    You generate it yourself (free, browser-based) — see README.md step 3.
+    It can contain MULTIPLE targets (one per card) in a single file.
+    Each <a-entity mindar-image-target="targetIndex: N"> below corresponds
+    to the Nth image you fed into the compiler, in the order you added them.
+  -->
+  <a-scene
+    mindar-image="imageTargetSrc: assets/targets/targets.mind; autoStart: true; uiScanning: no;"
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: true"
+  >
+    <a-assets>
+      <!-- Add one <a-asset-item> per 3D model. id is referenced below. -->
+      <a-asset-item id="model-0" src="assets/models/card-0.glb"></a-asset-item>
+    </a-assets>
+
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- CARD 0 -->
+    <a-entity mindar-image-target="targetIndex: 0">
+      <a-gltf-model
+        rotation="0 0 0"
+        position="0 0 0.1"
+        scale="0.05 0.05 0.05"
+        src="#model-0"
+        animation-mixer
+      ></a-gltf-model>
+    </a-entity>
+
+    <!-- To add a 2nd, 3rd... card: add another <a-asset-item>,
+         another <a-entity mindar-image-target="targetIndex: N">,
+         and re-compile targets.mind with N+1 images in the same order. -->
+  </a-scene>
+
+  <script>
+    const sceneEl = document.querySelector('a-scene');
+    const status = document.getElementById('status');
+    const overlay = document.getElementById('overlay');
+
+    sceneEl.addEventListener('arReady', () => {
+      status.textContent = 'Camera ready. Point at a card.';
+      setTimeout(() => overlay.classList.add('hidden'), 1500);
+    });
+    sceneEl.addEventListener('arError', () => {
+      status.textContent = 'Camera failed to start. Check permissions and reload.';
+      overlay.classList.remove('hidden');
+    });
+
+    document.querySelectorAll('[mindar-image-target]').forEach((el, i) => {
+      el.addEventListener('targetFound', () => { status.textContent = `Card ${i} found!`; overlay.classList.add('hidden'); });
+      el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at a card.'; overlay.classList.remove('hidden'); });
+    });
+  </script>
+</body>
+</html>

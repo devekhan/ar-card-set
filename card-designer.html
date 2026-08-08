@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Card Sheet Designer — Print Layout</title>
+<style>
+  body { font-family: -apple-system, Roboto, sans-serif; margin: 0; display: flex; height: 100vh; background: #1a1a1a; color: #eee; }
+  #panel { width: 320px; padding: 20px; overflow-y: auto; background: #222; flex-shrink: 0; }
+  #panel h2 { font-size: 16px; margin-bottom: 12px; }
+  #panel label { display: block; font-size: 12px; margin: 12px 0 4px; color: #aaa; }
+  #panel input, #panel select { width: 100%; padding: 6px; background: #333; border: 1px solid #444; color: #eee; border-radius: 4px; }
+  #panel button { width: 100%; margin-top: 16px; padding: 10px; background: #4f8cff; border: none; color: #fff; border-radius: 4px; font-weight: 600; cursor: pointer; }
+  #panel button:hover { background: #3a7ae0; }
+  #slotList { margin-top: 12px; font-size: 12px; color: #999; }
+  #slotList div { padding: 4px 0; border-bottom: 1px solid #333; }
+  #canvasWrap { flex: 1; overflow: auto; display: flex; align-items: flex-start; justify-content: center; padding: 20px; }
+  canvas { background: #fff; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+  .hint { font-size: 11px; color: #777; margin-top: 4px; line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<div id="panel">
+  <h2>AR Card Sheet Designer</h2>
+  <p class="hint">Lays your card images onto an A4 sheet at real print size with crop marks, so you can print at home or at any print shop. No software needed.</p>
+
+  <label>Card size</label>
+  <select id="cardSize">
+    <option value="63x88">Poker size — 63 × 88 mm</option>
+    <option value="59x91">Bridge size — 59 × 91 mm</option>
+    <option value="89x51">Business card — 89 × 51 mm</option>
+    <option value="custom">Custom…</option>
+  </select>
+  <div id="customSize" style="display:none">
+    <label>Width (mm)</label>
+    <input type="number" id="customW" value="63" />
+    <label>Height (mm)</label>
+    <input type="number" id="customH" value="88" />
+  </div>
+
+  <label>Add card image</label>
+  <input type="file" id="imgInput" accept="image/*" multiple />
+  <p class="hint">Add images in the SAME order you'll later upload them to the MindAR image target compiler — order matters for matching cards to 3D models.</p>
+
+  <div id="slotList"></div>
+
+  <button id="renderBtn">Generate print sheet</button>
+  <button id="downloadBtn" style="background:#2ecc71; display:none;">Download PNG (300 DPI)</button>
+</div>
+
+<div id="canvasWrap">
+  <canvas id="sheet"></canvas>
+</div>
+
+<script>
+const DPI = 300;
+const MM_TO_IN = 1 / 25.4;
+const A4_W_MM = 210, A4_H_MM = 297;
+const MARGIN_MM = 10;
+const GAP_MM = 4;
+
+let images = [];
+const imgInput = document.getElementById('imgInput');
+const slotList = document.getElementById('slotList');
+const cardSizeSel = document.getElementById('cardSize');
+const customSize = document.getElementById('customSize');
+const canvas = document.getElementById('sheet');
+const ctx = canvas.getContext('2d');
+const downloadBtn = document.getElementById('downloadBtn');
+
+cardSizeSel.addEventListener('change', () => {
+  customSize.style.display = cardSizeSel.value === 'custom' ? 'block' : 'none';
+});
+
+imgInput.addEventListener('change', (e) => {
+  for (const file of e.target.files) {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.src = url;
+    images.push({ file, img, name: file.name });
+  }
+  renderSlotList();
+});
+
+function renderSlotList() {
+  slotList.innerHTML = images.map((im, i) => `<div>#${i} — ${im.name}</div>`).join('');
+}
+
+function getCardSizeMM() {
+  if (cardSizeSel.value === 'custom') {
+    return [parseFloat(document.getElementById('customW').value) || 63,
+            parseFloat(document.getElementById('customH').value) || 88];
+  }
+  const [w, h] = cardSizeSel.value.split('x').map(Number);
+  return [w, h];
+}
+
+function mmToPx(mm) { return Math.round(mm * MM_TO_IN * DPI); }
+
+function drawCropMarks(x, y, w, h) {
+  const len = mmToPx(3);
+  ctx.strokeStyle = '#999';
+  ctx.lineWidth = 1;
+  const corners = [[x,y],[x+w,y],[x,y+h],[x+w,y+h]];
+  corners.forEach(([cx, cy], i) => {
+    ctx.beginPath();
+    const dx = i % 2 === 0 ? -1 : 1;
+    const dy = i < 2 ? -1 : 1;
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + dx * len, cy);
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx, cy + dy * len);
+    ctx.stroke();
+  });
+}
+
+document.getElementById('renderBtn').addEventListener('click', () => {
+  if (images.length === 0) { alert('Add at least one card image first.'); return; }
+
+  const [cardWmm, cardHmm] = getCardSizeMM();
+  const pageWpx = mmToPx(A4_W_MM);
+  const pageHpx = mmToPx(A4_H_MM);
+  const cardWpx = mmToPx(cardWmm);
+  const cardHpx = mmToPx(cardHmm);
+  const marginPx = mmToPx(MARGIN_MM);
+  const gapPx = mmToPx(GAP_MM);
+
+  const cols = Math.max(1, Math.floor((pageWpx - 2*marginPx + gapPx) / (cardWpx + gapPx)));
+  const rows = Math.max(1, Math.floor((pageHpx - 2*marginPx + gapPx) / (cardHpx + gapPx)));
+  const perPage = cols * rows;
+  const pages = Math.ceil(images.length / perPage);
+
+  canvas.width = pageWpx;
+  canvas.height = pageHpx * pages;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  images.forEach((im, i) => {
+    const page = Math.floor(i / perPage);
+    const idxInPage = i % perPage;
+    const col = idxInPage % cols;
+    const row = Math.floor(idxInPage / cols);
+    const x = marginPx + col * (cardWpx + gapPx);
+    const y = page * pageHpx + marginPx + row * (cardHpx + gapPx);
+
+    ctx.drawImage(im.img, x, y, cardWpx, cardHpx);
+    drawCropMarks(x, y, cardWpx, cardHpx);
+
+    ctx.fillStyle = '#bbb';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(`#${i}`, x + 2, y + cardHpx + 12);
+  });
+
+  downloadBtn.style.display = 'block';
+});
+
+downloadBtn.addEventListener('click', () => {
+  const link = document.createElement('a');
+  link.download = 'ar-card-sheet.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+});
+</script>
+
+</body>
+</html>
