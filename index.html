@@ -24,7 +24,7 @@
     to the Nth image you fed into the compiler, in the order you added them.
   -->
   <a-scene
-    mindar-image="imageTargetSrc: assets/targets/targets.mind; autoStart: true; uiScanning: no;"
+    mindar-image="imageTargetSrc: assets/targets/targets.mind; autoStart: true; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001; warmupTolerance: 5; missTolerance: 5;"
     color-space="sRGB"
     renderer="colorManagement: true, physicallyCorrectLights"
     vr-mode-ui="enabled: false"
@@ -42,7 +42,7 @@
       <a-gltf-model
         rotation="0 0 0"
         position="0 0 0.1"
-        scale="0.05 0.05 0.05"
+        scale="0.15 0.15 0.15"
         src="#model-0"
         animation-mixer
       ></a-gltf-model>
