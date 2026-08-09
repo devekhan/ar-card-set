@@ -39,7 +39,7 @@
         id="zoomable-0"
         rotation="0 0 0"
         position="0 0 0.1"
-        scale="0.15 0.15 0.15"
+        scale="0.01 0.01 0.01"
         src="#model-0"
       ></a-gltf-model>
     </a-entity>
@@ -81,7 +81,7 @@
     // (e.g. origin sits at the feet). Rotating an off-center model makes it
     // orbit in a circle instead of spinning in place. This shifts the loaded
     // mesh so its bounding-box center sits exactly at the parent's origin.
-    const baseScales = { 'zoomable-0': 0.15 };
+    const baseScales = { 'zoomable-0': 0.01 };
     Object.keys(baseScales).forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
