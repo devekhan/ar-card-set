@@ -86,6 +86,15 @@
       el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at a card.'; overlay.classList.remove('hidden'); });
     });
 
+    // Show model load errors directly on screen (helps debugging on mobile,
+    // where there's no easy access to the browser console).
+    document.querySelectorAll('a-gltf-model').forEach((el) => {
+      el.addEventListener('model-error', (e) => {
+        overlay.classList.remove('hidden');
+        status.textContent = `Model failed to load (${el.id}): ${e.detail?.src || 'unknown error'}`;
+      });
+    });
+
     // --- Recenter each model on its own geometric center once it loads ---
     // Many downloaded/exported models are NOT centered at their local origin
     // (e.g. origin sits at the feet). Rotating an off-center model makes it
