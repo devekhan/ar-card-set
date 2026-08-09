@@ -12,16 +12,13 @@
 
   <!-- Simple loading / status overlay -->
   <div id="overlay">
-    <p id="status">Point your camera at one of your printed AR cards.</p>
+    <p id="status">Point your camera at the Upgrade card.</p>
   </div>
 
   <!--
     mindar-image = "imageTargetSrc: assets/targets/targets.mind"
     That .mind file is a COMPILED version of your card art.
     You generate it yourself (free, browser-based) — see README.md step 3.
-    It can contain MULTIPLE targets (one per card) in a single file.
-    Each <a-entity mindar-image-target="targetIndex: N"> below corresponds
-    to the Nth image you fed into the compiler, in the order you added them.
   -->
   <a-scene
     mindar-image="imageTargetSrc: assets/targets/targets.mind; autoStart: true; uiScanning: no; filterMinCF: 0.0001; filterBeta: 0.001; warmupTolerance: 5; missTolerance: 5;"
@@ -31,14 +28,12 @@
     device-orientation-permission-ui="enabled: true"
   >
     <a-assets>
-      <!-- Add one <a-asset-item> per 3D model. id is referenced below. -->
       <a-asset-item id="model-0" src="assets/models/card-0.glb"></a-asset-item>
-      <a-asset-item id="model-1" src="assets/models/card-1.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
 
-    <!-- CARD 0 -->
+    <!-- CARD 0: Upgrade -->
     <a-entity mindar-image-target="targetIndex: 0">
       <a-gltf-model
         id="zoomable-0"
@@ -46,23 +41,10 @@
         position="0 0 0.1"
         scale="0.15 0.15 0.15"
         src="#model-0"
-        animation-mixer
       ></a-gltf-model>
     </a-entity>
 
-    <!-- CARD 1 -->
-    <a-entity mindar-image-target="targetIndex: 1">
-      <a-gltf-model
-        id="zoomable-1"
-        rotation="0 0 0"
-        position="0 0 0.1"
-        scale="1 1 1"
-        src="#model-1"
-        animation-mixer
-      ></a-gltf-model>
-    </a-entity>
-
-    <!-- To add a 2nd, 3rd... card: add another <a-asset-item>,
+    <!-- To add a 2nd, 3rd... card later: add another <a-asset-item>,
          another <a-entity mindar-image-target="targetIndex: N">,
          and re-compile targets.mind with N+1 images in the same order. -->
   </a-scene>
@@ -73,7 +55,7 @@
     const overlay = document.getElementById('overlay');
 
     sceneEl.addEventListener('arReady', () => {
-      status.textContent = 'Camera ready. Point at a card.';
+      status.textContent = 'Camera ready. Point at the card.';
       setTimeout(() => overlay.classList.add('hidden'), 1500);
     });
     sceneEl.addEventListener('arError', () => {
@@ -82,58 +64,55 @@
     });
 
     document.querySelectorAll('[mindar-image-target]').forEach((el, i) => {
-      el.addEventListener('targetFound', () => { status.textContent = `Card ${i} found!`; overlay.classList.add('hidden'); });
-      el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at a card.'; overlay.classList.remove('hidden'); });
+      el.addEventListener('targetFound', () => { status.textContent = `Card found!`; overlay.classList.add('hidden'); });
+      el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at the card.'; overlay.classList.remove('hidden'); });
     });
 
-    // Show model load errors directly on screen (helps debugging on mobile,
-    // where there's no easy access to the browser console).
+    // Show model load errors directly on screen (helps debugging on mobile).
     document.querySelectorAll('a-gltf-model').forEach((el) => {
       el.addEventListener('model-error', (e) => {
         overlay.classList.remove('hidden');
-        status.textContent = `Model failed to load (${el.id}): ${e.detail?.src || 'unknown error'}`;
+        status.textContent = `Model failed to load (${el.id}).`;
       });
     });
 
-    // --- Recenter each model on its own geometric center once it loads ---
+    // --- Recenter model on its own geometric center once it loads ---
     // Many downloaded/exported models are NOT centered at their local origin
     // (e.g. origin sits at the feet). Rotating an off-center model makes it
-    // swing around in a circle ("standing on a globe") instead of spinning
-    // in place. This shifts the loaded mesh so its bounding-box center sits
-    // exactly at the parent entity's origin, fixing that.
-    const baseScales = { 'zoomable-0': 0.15, 'zoomable-1': 1 };
+    // orbit in a circle instead of spinning in place. This shifts the loaded
+    // mesh so its bounding-box center sits exactly at the parent's origin.
+    const baseScales = { 'zoomable-0': 0.15 };
     Object.keys(baseScales).forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
       el.addEventListener('model-loaded', (e) => {
         const mesh = e.detail.model;
         const box = new THREE.Box3().setFromObject(mesh);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        console.log(`[${id}] loaded, raw size:`, size); // check browser console if scale ever looks off
         const center = new THREE.Vector3();
         box.getCenter(center);
         mesh.position.sub(center);
       });
     });
 
-    // --- Interactive 3D model controls: auto-rotate, smooth pinch-zoom, drag-rotate ---
-    // "target" = where we WANT the value to be (set instantly by gestures)
-    // "current" = what's actually displayed (eases toward target every frame = smoothness)
+    // --- Interactive controls: auto-rotate, smooth pinch-zoom, drag-rotate ---
     const targetScales = { ...baseScales };
     const displayScales = { ...baseScales };
+    const targetRotations = { 'zoomable-0': { x: 0, y: 0 } };
+    const displayRotations = { 'zoomable-0': { x: 0, y: 0 } };
 
-    const targetRotations = { 'zoomable-0': { x: 0, y: 0 }, 'zoomable-1': { x: 0, y: 0 } };
-    const displayRotations = { 'zoomable-0': { x: 0, y: 0 }, 'zoomable-1': { x: 0, y: 0 } };
-
-    const MIN_SCALE_MULT = 0.2;   // don't let it shrink below 20% of base
-    const MAX_SCALE_MULT = 10;    // allow zooming up to 1000% of base for close inspection
-
-    const ZOOM_SMOOTHING = 0.18;     // higher = snappier, lower = smoother/slower (0-1)
-    const ROTATE_SMOOTHING = 0.25;   // smoothing for manual drag rotation
-    const AUTO_ROTATE_SPEED = 12;    // degrees per second, auto clockwise spin
-    const RESUME_AUTOROTATE_DELAY = 1500; // ms after user releases touch before auto-spin resumes
+    const MIN_SCALE_MULT = 0.2;
+    const MAX_SCALE_MULT = 10;
+    const ZOOM_SMOOTHING = 0.18;
+    const ROTATE_SMOOTHING = 0.25;
+    const AUTO_ROTATE_SPEED = 12;
+    const RESUME_AUTOROTATE_DELAY = 1500;
 
     let pinchStartDist = null;
     let pinchStartScales = {};
-    let dragStart = null;       // { x, y } screen coords when 1-finger drag begins
+    let dragStart = null;
     let dragStartRotations = {};
     let userInteracting = false;
     let resumeTimeout = null;
@@ -146,7 +125,6 @@
     }
 
     function getVisibleZoomables() {
-      // Only affect models whose parent target is currently being tracked/visible
       return Object.keys(baseScales)
         .map(id => document.getElementById(id))
         .filter(el => el && el.object3D && el.object3D.visible);
@@ -156,7 +134,6 @@
       userInteracting = true;
       if (resumeTimeout) clearTimeout(resumeTimeout);
     }
-
     function scheduleResumeAutoRotate() {
       if (resumeTimeout) clearTimeout(resumeTimeout);
       resumeTimeout = setTimeout(() => { userInteracting = false; }, RESUME_AUTOROTATE_DELAY);
@@ -185,19 +162,17 @@
       if (e.touches.length === 2 && pinchStartDist) {
         const newDist = getTouchDist(e.touches);
         const ratio = newDist / pinchStartDist;
-
         getVisibleZoomables().forEach(el => {
           const base = baseScales[el.id];
           const startScale = pinchStartScales[el.id] || base;
           let newScale = startScale * ratio;
           newScale = Math.max(base * MIN_SCALE_MULT, Math.min(base * MAX_SCALE_MULT, newScale));
-          targetScales[el.id] = newScale; // eased toward this in the animation loop below
+          targetScales[el.id] = newScale;
         });
       } else if (e.touches.length === 1 && dragStart) {
         const dx = e.touches[0].clientX - dragStart.x;
         const dy = e.touches[0].clientY - dragStart.y;
-        const ROTATE_SENSITIVITY = 0.5; // degrees per pixel dragged
-
+        const ROTATE_SENSITIVITY = 0.5;
         getVisibleZoomables().forEach(el => {
           const startRot = dragStartRotations[el.id] || { x: 0, y: 0 };
           const newY = startRot.y + dx * ROTATE_SENSITIVITY;
@@ -215,24 +190,20 @@
       }
     }, { passive: true });
 
-    // Main animation loop: eases scale/rotation smoothly, and auto-spins when idle
     function animate(now) {
-      const dt = (now - lastFrameTime) / 1000; // seconds since last frame
+      const dt = (now - lastFrameTime) / 1000;
       lastFrameTime = now;
 
       getVisibleZoomables().forEach(el => {
         const id = el.id;
 
-        // --- Smooth zoom: ease display scale toward target scale ---
         const target = targetScales[id] ?? baseScales[id];
         const display = displayScales[id] ?? target;
         const newDisplay = display + (target - display) * ZOOM_SMOOTHING;
         displayScales[id] = newDisplay;
         el.setAttribute('scale', `${newDisplay} ${newDisplay} ${newDisplay}`);
 
-        // --- Rotation: auto-spin clockwise when idle, smooth manual rotation otherwise ---
         if (!userInteracting) {
-          // Auto-rotate: increment Y steadily (clockwise as viewed from the front)
           targetRotations[id].y -= AUTO_ROTATE_SPEED * dt;
         }
         const rot = displayRotations[id];
