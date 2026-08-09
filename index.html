@@ -40,6 +40,7 @@
     <!-- CARD 0 -->
     <a-entity mindar-image-target="targetIndex: 0">
       <a-gltf-model
+        id="zoomable-0"
         rotation="0 0 0"
         position="0 0 0.1"
         scale="0.15 0.15 0.15"
@@ -71,6 +72,62 @@
       el.addEventListener('targetFound', () => { status.textContent = `Card ${i} found!`; overlay.classList.add('hidden'); });
       el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at a card.'; overlay.classList.remove('hidden'); });
     });
+
+    // --- Pinch-to-zoom for 3D models ---
+    // Base scale each model starts at (matches the "scale" attribute set in HTML above).
+    // If you add more cards, add their base scale here too, keyed by element id.
+    const baseScales = { 'zoomable-0': 0.15 };
+    const currentScales = { ...baseScales };
+    const MIN_SCALE_MULT = 0.3;  // don't let it shrink below 30% of base
+    const MAX_SCALE_MULT = 4;    // don't let it grow beyond 400% of base
+
+    let pinchStartDist = null;
+    let pinchStartScales = {};
+
+    function getTouchDist(touches) {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getVisibleZoomables() {
+      // Only zoom models whose parent target is currently being tracked/visible
+      return Object.keys(baseScales)
+        .map(id => document.getElementById(id))
+        .filter(el => el && el.object3D && el.object3D.visible);
+    }
+
+    window.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        pinchStartDist = getTouchDist(e.touches);
+        pinchStartScales = {};
+        getVisibleZoomables().forEach(el => {
+          pinchStartScales[el.id] = currentScales[el.id] || baseScales[el.id];
+        });
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2 && pinchStartDist) {
+        const newDist = getTouchDist(e.touches);
+        const ratio = newDist / pinchStartDist;
+
+        getVisibleZoomables().forEach(el => {
+          const base = baseScales[el.id];
+          const startScale = pinchStartScales[el.id] || base;
+          let newScale = startScale * ratio;
+          newScale = Math.max(base * MIN_SCALE_MULT, Math.min(base * MAX_SCALE_MULT, newScale));
+          currentScales[el.id] = newScale;
+          el.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
+        });
+      }
+    }, { passive: true });
+
+    window.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        pinchStartDist = null;
+      }
+    }, { passive: true });
   </script>
 </body>
 </html>
