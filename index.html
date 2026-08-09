@@ -78,11 +78,16 @@
     // If you add more cards, add their base scale here too, keyed by element id.
     const baseScales = { 'zoomable-0': 0.15 };
     const currentScales = { ...baseScales };
+    const currentRotations = { 'zoomable-0': { x: 0, y: 0 } };
     const MIN_SCALE_MULT = 0.3;  // don't let it shrink below 30% of base
     const MAX_SCALE_MULT = 4;    // don't let it grow beyond 400% of base
 
     let pinchStartDist = null;
     let pinchStartScales = {};
+    let dragStart = null;      // { x, y } screen coords when 1-finger drag begins
+    let dragStartRotations = {};
+
+    const ROTATE_SENSITIVITY = 0.5; // degrees per pixel dragged
 
     function getTouchDist(touches) {
       const dx = touches[0].clientX - touches[1].clientX;
@@ -91,7 +96,7 @@
     }
 
     function getVisibleZoomables() {
-      // Only zoom models whose parent target is currently being tracked/visible
+      // Only affect models whose parent target is currently being tracked/visible
       return Object.keys(baseScales)
         .map(id => document.getElementById(id))
         .filter(el => el && el.object3D && el.object3D.visible);
@@ -99,10 +104,20 @@
 
     window.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
+        // Two fingers: start pinch-zoom, cancel any drag rotation in progress
+        dragStart = null;
         pinchStartDist = getTouchDist(e.touches);
         pinchStartScales = {};
         getVisibleZoomables().forEach(el => {
           pinchStartScales[el.id] = currentScales[el.id] || baseScales[el.id];
+        });
+      } else if (e.touches.length === 1) {
+        // One finger: start drag-to-rotate
+        pinchStartDist = null;
+        dragStart = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        dragStartRotations = {};
+        getVisibleZoomables().forEach(el => {
+          dragStartRotations[el.id] = { ...(currentRotations[el.id] || { x: 0, y: 0 }) };
         });
       }
     }, { passive: true });
@@ -120,12 +135,27 @@
           currentScales[el.id] = newScale;
           el.setAttribute('scale', `${newScale} ${newScale} ${newScale}`);
         });
+      } else if (e.touches.length === 1 && dragStart) {
+        const dx = e.touches[0].clientX - dragStart.x;
+        const dy = e.touches[0].clientY - dragStart.y;
+
+        getVisibleZoomables().forEach(el => {
+          const startRot = dragStartRotations[el.id] || { x: 0, y: 0 };
+          // Horizontal drag spins around Y axis (left/right), vertical drag tilts around X axis (up/down)
+          const newY = startRot.y + dx * ROTATE_SENSITIVITY;
+          const newX = startRot.x + dy * ROTATE_SENSITIVITY;
+          currentRotations[el.id] = { x: newX, y: newY };
+          el.setAttribute('rotation', `${newX} ${newY} 0`);
+        });
       }
     }, { passive: true });
 
     window.addEventListener('touchend', (e) => {
       if (e.touches.length < 2) {
         pinchStartDist = null;
+      }
+      if (e.touches.length < 1) {
+        dragStart = null;
       }
     }, { passive: true });
   </script>
