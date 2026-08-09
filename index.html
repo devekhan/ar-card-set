@@ -73,11 +73,26 @@
       el.addEventListener('targetLost', () => { status.textContent = 'Point your camera at a card.'; overlay.classList.remove('hidden'); });
     });
 
-    // --- Interactive 3D model controls: auto-rotate, smooth pinch-zoom, drag-rotate ---
-    // Base scale each model starts at (matches the "scale" attribute set in HTML above).
-    // If you add more cards, add their base scale here too, keyed by element id.
+    // --- Recenter each model on its own geometric center once it loads ---
+    // Many downloaded/exported models are NOT centered at their local origin
+    // (e.g. origin sits at the feet). Rotating an off-center model makes it
+    // swing around in a circle ("standing on a globe") instead of spinning
+    // in place. This shifts the loaded mesh so its bounding-box center sits
+    // exactly at the parent entity's origin, fixing that.
     const baseScales = { 'zoomable-0': 0.15 };
+    Object.keys(baseScales).forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener('model-loaded', (e) => {
+        const mesh = e.detail.model;
+        const box = new THREE.Box3().setFromObject(mesh);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        mesh.position.sub(center);
+      });
+    });
 
+    // --- Interactive 3D model controls: auto-rotate, smooth pinch-zoom, drag-rotate ---
     // "target" = where we WANT the value to be (set instantly by gestures)
     // "current" = what's actually displayed (eases toward target every frame = smoothness)
     const targetScales = { ...baseScales };
