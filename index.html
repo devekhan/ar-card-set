@@ -33,6 +33,7 @@
     <a-assets>
       <!-- Add one <a-asset-item> per 3D model. id is referenced below. -->
       <a-asset-item id="model-0" src="assets/models/card-0.glb"></a-asset-item>
+      <a-asset-item id="model-1" src="assets/models/card-1.glb"></a-asset-item>
     </a-assets>
 
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
@@ -45,6 +46,18 @@
         position="0 0 0.1"
         scale="0.15 0.15 0.15"
         src="#model-0"
+        animation-mixer
+      ></a-gltf-model>
+    </a-entity>
+
+    <!-- CARD 1 -->
+    <a-entity mindar-image-target="targetIndex: 1">
+      <a-gltf-model
+        id="zoomable-1"
+        rotation="0 0 0"
+        position="0 0 0.1"
+        scale="0.15 0.15 0.15"
+        src="#model-1"
         animation-mixer
       ></a-gltf-model>
     </a-entity>
@@ -79,7 +92,7 @@
     // swing around in a circle ("standing on a globe") instead of spinning
     // in place. This shifts the loaded mesh so its bounding-box center sits
     // exactly at the parent entity's origin, fixing that.
-    const baseScales = { 'zoomable-0': 0.15 };
+    const baseScales = { 'zoomable-0': 0.15, 'zoomable-1': 0.15 };
     Object.keys(baseScales).forEach(id => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -98,8 +111,8 @@
     const targetScales = { ...baseScales };
     const displayScales = { ...baseScales };
 
-    const targetRotations = { 'zoomable-0': { x: 0, y: 0 } };
-    const displayRotations = { 'zoomable-0': { x: 0, y: 0 } };
+    const targetRotations = { 'zoomable-0': { x: 0, y: 0 }, 'zoomable-1': { x: 0, y: 0 } };
+    const displayRotations = { 'zoomable-0': { x: 0, y: 0 }, 'zoomable-1': { x: 0, y: 0 } };
 
     const MIN_SCALE_MULT = 0.2;   // don't let it shrink below 20% of base
     const MAX_SCALE_MULT = 10;    // allow zooming up to 1000% of base for close inspection
